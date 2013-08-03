@@ -1,0 +1,652 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<META HTTP-EQUIV="MSThemeCompatible" CONTENT="Yes">
+
+<html>
+<head>
+	<title>User Creator v1.0</title>
+  		<HTA:APPLICATION ID="oHTA"
+     		APPLICATIONNAME="User Creator v1.0"
+	 		BORDER="thin"
+	 		BORDERSTYLE="normal"
+	 		CAPTION="yes"
+	 		MAXIMIZEBUTTON="no"
+	 		MINIMIZEBUTTON="yes"
+	 		SHOWINTASKBAR="yes"
+	 		SINGLEINSTANCE="yes"
+	 		SYSMENU="yes"
+	 		VERSION="1.0"
+	 		WINDOWSTATE="normal"
+	 		SCROLL="auto"
+	 		SCROLLFLAT="yes">
+<style>
+BODY
+{
+	background-color: 8FBEFD;
+	font-family: Helvetica;
+	font-size: 8pt;
+	margin-top: 10px;
+	margin-left: 10px;
+	margin-right: 10px;
+	margin-bottom: 10px;
+	filter:  progid:DXImageTransform.Microsoft.gradient(enabled='true', startColorstr=#8FBEFD, endColorstr=#1F7CFB);
+}
+
+button
+{
+	font-family: Helvetica;
+	font-size: 10pt;
+	border-color: #1E4F8E;
+	background-color: #8EBEFA;
+	width: 75px;
+}
+
+.clsInfo
+{
+	font-family: Helvetica;
+	font-size: 10pt;
+}
+.clsMain
+{
+	font-family: Helvetica;
+	font-size: 10pt;
+}
+
+</style>
+
+<script language="javascript">
+	var message="Function Disabled!";
+	///////////////////////////////////
+	function clickIE() {if (document.all) {return false;}}
+	function clickNS(e) {if 
+	(document.layers||(document.getElementById&&!document.all)) {
+	if (e.which==2||e.which==3) {alert(message);return false;}}}
+	if (document.layers) 
+	{document.captureEvents(Event.MOUSEDOWN);document.onmousedown=clickNS;}
+	else{document.onmouseup=clickNS;document.oncontextmenu=clickIE;}
+	document.oncontextmenu=new Function("return false")
+</script>
+<script language="vbscript">
+On Error Resume Next
+'Define ADSI Settings
+	Const UF_SCRIPT                    = &H0001
+	Const UF_ACCOUNTDISABLE            = &H0002
+	Const UF_HOMEDIR_REQUIRED          = &H0008
+	Const UF_LOCKOUT                   = &H0010
+	Const UF_PASSWD_NOTREQD            = &H0020
+	Const UF_PASSWD_CANT_CHANGE        = &H0040
+	Const UF_TEMP_DUPLICATE_ACCOUNT    = &H0100
+	Const UF_NORMAL_ACCOUNT            = &H0200
+	Const UF_INTERDOMAIN_TRUST_ACCOUNT = &H0800
+	Const UF_WORKSTATION_TRUST_ACCOUNT = &H1000
+	Const UF_SERVER_TRUST_ACCOUNT      = &H2000
+	Const UF_DONT_EXPIRE_PASSWD        = &H10000
+	Const UF_MNS_LOGON_ACCOUNT         = &H20000
+	
+	Const strDomain = "DOMAIN"
+	Const TermServShare = "\\moit-file-srv\tsprof$\"
+	Const TermServDLL	= "TerminalServer.dll"
+	Const DefaultPass	= "Welcome2"
+
+'DIM Variables
+	Dim WshShell
+	Dim TSConfigObject
+	Dim RetVal
+	Dim oUser, User, uFlags, Flags
+	Dim selOUFirstTime
+	ReDim AccountInfo(6)
+
+'Define/Create Objects
+	selOUFirstTime = 1
+	Dim objConnection, objCommand
+	Set objConnection = CreateObject("ADODB.Connection")
+	objConnection.Open "Provider=ADsDSOObject;"
+	Set objCommand = CreateObject("ADODB.Command")
+	objCommand.ActiveConnection = objConnection
+
+	Function Window_OnLoad
+		self.ResizeTo 500,530
+		self.MoveTo 200,150
+	End Function
+
+	Function Process()
+		ChangeView 3 'Change to Report View
+		
+		CheckAccountInfo
+	End Function
+
+	ReDim cvOptions(6,6)
+	'1-Main 2-Info1 3-Info2 4-OU_Picker 5-OU_Picker_OK 6-About
+	cvOptions(1,1) = "block" : cvOptions(1,2) = "none" : cvOptions(1,3) = "none" : cvOptions(1,4) = "none" : cvOptions(1,5) = "none" : cvOptions(1,6) = "none"
+	cvOptions(2,1) = "none" : cvOptions(2,2) = "block" : cvOptions(2,3) = "none" : cvOptions(2,4) = "none" : cvOptions(2,5) = "none" : cvOptions(2,6) = "none"
+	cvOptions(3,1) = "none" : cvOptions(3,2) = "none" : cvOptions(3,3) = "block" : cvOptions(3,4) = "none" : cvOptions(3,5) = "none" : cvOptions(3,6) = "none"
+	cvOptions(4,1) = "none" : cvOptions(4,2) = "none" : cvOptions(4,3) = "none" : cvOptions(4,4) = "block" : cvOptions(4,5) = "none" : cvOptions(4,6) = "none"
+	cvOptions(5,1) = "block" : cvOptions(5,2) = "none" : cvOptions(5,3) = "none" : cvOptions(5,4) = "none" : cvOptions(5,5) = "block" : cvOptions(5,6) = "none"
+	cvOptions(6,1) = "none" : cvOptions(6,2) = "none" : cvOptions(6,3) = "none" : cvOptions(6,4) = "none" : cvOptions(6,5) = "none" : cvOptions(6,6) = "block"
+	
+	Function ChangeView(opt)
+		cfStatus = CheckFields(opt)
+		if cfStatus then
+			wndInitial.style.display	= cvOptions(opt, 1)
+			wndInfo1.style.display		= cvOptions(opt, 2)
+			wndInfo2.style.display		= cvOptions(opt, 3)
+			wndOUPicker.style.display	= cvOptions(opt, 4)
+			wndAbout.style.display		= cvOptions(opt, 6)
+			
+			'Custom
+			subReport.innertext = ""
+			If opt = 4 Then PopulateOUs
+			If opt = 5 Then if selOUPicker.value <> "" then txtOU.value = "LDAP://" & selOUPicker.value			
+		end if
+	End Function
+	
+	Function CheckFields(opt)
+		Select Case opt
+			Case 1
+			Case 2
+				if txtFirstname.value = "" then msgbox "First name is invalid.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+				if txtLastname.value = "" then msgbox "Last name is invalid.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+				if txtFullname.value = "" then msgbox "Full name is invalid.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+				if len(txtUserlogonname.value) < 3 then msgbox "User logon name is invalid.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+				if (len(txtPassword1.value) < 8 OR len(txtPassword2.value) < 8) then msgbox "Password must be AT LEAST 8 characters." & vbCRLF & "And make sure the password has AT LEAST 1 capital letter and AT LEAST 1 numeric value.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+				if txtPassword1.value <> txtPassword2.value then msgbox "Passwords do not match. Try again.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+			Case 3
+				if txtDescription.value = "" then msgbox "Description is invalid.", vbOKONLY + vbCRITICAL, "Error" : CheckFields = False : Exit Function
+		End Select
+		CheckFields = True
+	End Function
+
+	Function UpdateFields(opt)
+		Select Case opt
+			Case 1 'Reset Passwords
+				If chkReset.checked Then
+					radReset(0).disabled = False
+					radReset(1).disabled = False
+					txtReset.disabled = False
+					txtReset.Value = DefaultPass
+				Elseif NOT chkReset.checked Then
+					radReset(0).disabled = True
+					radReset(1).disabled = True
+					txtReset.disabled = True
+					txtReset.Value = ""
+				End If
+			Case 2 'Remote Access
+				If chkRAS.checked Then
+					radRAS(0).disabled = False
+					radRAS(1).disabled = False
+					'radRAS(2).disabled = False
+				Elseif NOT chkRAS.checked Then
+					radRAS(0).disabled = True
+					radRAS(1).disabled = True
+					'radRAS(2).disabled = True
+				End If
+			Case 3 'Update Account Information
+				If chkUAI.checked Then
+					radUAI(0).disabled = False
+					radUAI(1).disabled = False
+					btnInfo.disabled = False
+				Elseif NOT chkUAI.checked Then
+					radUAI(0).disabled = True
+					radUAI(1).disabled = True
+					btnInfo.disabled = True
+				End If
+		End Select
+	End Function
+
+	Function CloseNow()
+		self.close
+	End Function
+	
+	Function Report(rep, opt)
+		Select Case opt
+			Case 0
+				subReport.innertext = rep
+			Case 1
+				subReport.innertext = subReport.innertext & vbCRLF & rep
+		End Select
+	End Function
+	
+	''''''''''''''''''''''''''''''''''''''''''''''''''
+	Function CheckAccountInfo()
+		If chkTSP.checked = True Then RegTerminalServerDLL 1
+		Set oObject = GetObject(txtOU.Value)
+		oObject.Filter = Array("user")
+		For each oUser in oObject
+	    	Set User = GetObject("WinNT://" & strDomain & "/" & oUser.samaccountname & ",user")
+	    	Flags = User.Get("UserFlags")
+	    	AccountInfo(0)	= oUser.samaccountname 'Username
+			AccountInfo(1)	= Flags And UF_PASSWD_CANT_CHANGE '0 = Can Change, 64 = Can't Change
+			AccountInfo(2)	= Flags And UF_ACCOUNTDISABLE '0 = Enabled, 2 = Disabled
+			AccountInfo(3)	= Flags And UF_LOCKOUT '0 = Not Locked, 16 = Locked
+			AccountInfo(4)	= Flags And UF_SCRIPT '1 = Script Specified, 0 = No Script
+			AccountInfo(5)	= User.Get("PasswordExpired") '0 = Don't Change on Next Logon, 1 = Change on Next Logon
+			AccountInfo(6)	= User.Get("HomeDirDrive")
+			Report oUser.samaccountname, 1
+			ProcessAccountMods
+		Next
+		If chkTSP.checked = True Then RegTerminalServerDLL 0
+	End Function
+
+	Function ProcessAccountMods()
+		If chkReset.checked = True Then
+			If radReset(0).checked = True Then
+				If AccountInfo(5) = 1 Then
+					User.SetPassword txtReset.value 'Only Reset Passwords with Change On Next Logon checked
+				End If
+			ElseIf radReset(1).checked = True Then
+				User.SetPassword txtReset.value 'Set Passwords on ALL Accounts
+			End If
+		End If
+		If chkUA.checked = True Then User.IsAccountLocked = False 'Unlock Account
+		If chkAUTCP.checked = True Then
+			If AccountInfo(1) = 64 Then User.Put "UserFlags", Flags XOR UF_PASSWD_CANT_CHANGE 'Allow User to change password
+		End If
+		If chkCONL.checked = True Then User.PasswordExpired = 1 'Set to Change on Next Logon
+		If chkEA.checked = True Then User.AccountDisabled = False 'Enable Account
+		'Make Changes
+		User.SetInfo
+		if hex(err) <> 0 then report vbTAB & " :" & hex(err), 1
+		'Other
+		If chkRAS.checked = True Then	'Set Ras Permissions
+			If radRAS(0).checked = True Then SetRASPerms(radRAS(0).value) 'Allow
+			If radRAS(1).checked = True Then SetRASPerms(radRAS(1).value) 'Deny
+			If radRAS(2).checked = True Then SetRASPerms(radRAS(2).value) 'Control Through Policy
+		End If
+		If chkTSP.checked = True Then TermServProf() 'Set Terminal Service Profile
+		If chkUAI.checked = True Then UpdateUserInformation() 'Update User Information
+	End Function
+
+	Function SetRASPerms(opt)
+		Select Case opt
+			Case 1 ras = 1 'Deny
+			Case 9 ras = 9 'Allow
+		End Select
+		User.RasPermissions = ras
+		User.SetInfo
+		if hex(err) <> 0 then report vbTAB & " :" & hex(err), 1
+	End Function
+
+	Function TermServProf()
+			'If RetVal returns True then the TS Profile Path was madified
+			RetVal = TSConfigObject.ModifyTSProfilePath(strDomain, oUser.samaccountname, TermServShare & oUser.samaccountname)
+			report vbTAB & " :" & "Terminal Service - " & RetVal, 1
+			if hex(err) <> 0 then report vbTAB & " :" & hex(err), 1
+	End Function
+
+	Function RegTerminalServerDLL(inst)
+		If inst = 1 Then 'register
+			Set WshShell = CreateObject("WScript.Shell")
+			response = msgbox("To update Terminal Service Profiles you must register a DLL. Do you wish to register 'TerminalServer.dll'?", vbYESNO + vbQuestion, "Terminal Service Profile")
+			If response = 6 Then
+				WshShell.Run "regsvr32 /s " & TermServDLL,1,TRUE
+				Set TSConfigObject = CreateObject("TerminalServer.UserConfig") 'Create Terminal Service Object - Must regsvr32 TerminalServer.dll
+			ElseIf response = 7 Then
+				msgbox "The Terminal Service Profiles will NOT be updated!", vbOKONLY + vbInformation, "No Update"
+				chkTSP.checked = False
+			End If
+		ElseIf inst = 0 Then 'unregister
+			WshShell.Run "regsvr32 /u /s " & TermServDLL,1,True
+			Set WshShell = Nothing
+		End If
+	End Function
+
+	Function UpdateUserInformation()
+		If radUAI(0).checked = True then
+			strFields = "Description, physicalDeliveryOfficeName, telephoneNumber, mail," & _
+						"streetAddress, l, st, postalCode, c," & _
+						"title, Department, Company, manager"
+
+			objCommand.CommandText = _
+	    		"<GC://dc=domain,dc=com>;(&(objectCategory=User)(samaccountname=" & oUser.samaccountname & "))" & _
+        		";" & strFields & ";subtree"  
+			Set daUser = objCommand.Execute
+
+			'General
+				if txtDescription.value <> "" then if User.Description = "" then oUser.Put "Description", txtDescription.value
+				if txtOffice.value <> "" then if isNULL(daUser("physicalDeliveryOfficeName")) then oUser.Put "physicalDeliveryOfficeName", txtOffice.value
+				if txtPhonenumber.value <> "" then if isNULL(daUser("telephoneNumber")) then oUser.Put "telephoneNumber", txtPhonenumber.value
+				if txtEmail.value <> "" then if isNULL(daUser("mail")) then oUser.Put "mail", txtEmail.value
+			'Address
+				if txtStreet.value <> "" then if isNULL(daUser("streetAddress")) then oUser.Put "streetAddress", txtStreet.value
+				if txtCity.value <> "" then if isNULL(daUser("l")) then oUser.Put "l", txtCity.value
+				if txtState.value <> "" then if isNULL(daUser("st")) then oUser.Put "st", txtState.value
+				if txtZip.value <> "" then if isNULL(daUser("postalCode")) then oUser.Put "postalCode", txtZip.value
+				if txtCountry.value <> "" then if isNULL(daUser("c")) then oUser.Put "c", txtCountry.value
+			'Organization
+				if txtTitle.value <> "" then if isNULL(daUser("title")) then oUser.Put "title", txtTitle.value
+				if txtDepartment.value <> "" then if isNULL(daUser("Department")) then oUser.Put "Department", txtDepartment.value
+				if txtCompany.value <> "" then if isNULL(daUser("Company")) then oUser.Put "Company", txtCompany.value
+			'Make Changes
+				oUser.SetInfo
+			'Report Errors
+				if hex(err) <> 0 then report vbTAB & " :" & hex(err), 1
+			'Clean Up
+				Set daUser = Nothing
+		ElseIf radUAI(1).checked = True then
+			'General
+				if txtDescription.value <> "" then oUser.Put "Description", txtDescription.value
+				if txtOffice.value <> "" then oUser.Put "physicalDeliveryOfficeName", txtOffice.value
+				if txtPhonenumber.value <> "" then oUser.Put "telephoneNumber", txtPhonenumber.value
+				if txtEmail.value <> "" then oUser.Put "mail", txtEmail.value
+			'Address
+				if txtStreet.value <> "" then oUser.Put "streetAddress", txtStreet.value
+				if txtCity.value <> "" then oUser.Put "l", txtCity.value
+				if txtState.value <> "" then oUser.Put "st", txtState.value
+				if txtZip.value <> "" then oUser.Put "postalCode", txtZip.value
+				if txtCountry.value <> "" then oUser.Put "c", txtCountry.value
+			'Organization
+				if txtTitle.value <> "" then oUser.Put "title", txtTitle.value
+				if txtDepartment.value <> "" then oUser.Put "Department", txtDepartment.value
+				if txtCompany.value <> "" then oUser.Put "Company", txtCompany.value
+			'Make Changes
+				oUser.SetInfo
+			'Report Errors
+				if hex(err) <> 0 then report vbTAB & " :" & hex(err), 1
+		End If
+		If chkFUDN.checked = True Then
+	    	report oUser.samaccountname & " | " & oUser.givenname & " | " & oUser.sn & " | " & oUser.displayname, 1
+	    	if instr(oUser.displayname,",") then
+	    		fUser = split(replace(oUser.displayname," ", ""),",")
+	    		report "'" & fUser(1) & " " & fUser(0) & "'", 1
+	    		FixUser fUser(1), fUser(0)
+	    		report "*****Changed*****", 1
+	    	elseif oUser.displayname <> "" then
+	    		if oUser.givenname = "" OR oUser.sn = "" Then
+	    			fUser = split(oUser.displayname," ")
+	    			if ubound(fUser) >= 1 then
+	    				FixUser fUser(0), fUser(1)
+	    				report "'" & fUser(1) & " " & fUser(0) & "'", 1
+	    				report "*****Changed*****", 1
+	    			end if
+	    		end if
+	    	elseif oUser.displayname = "" AND oUser.Get("sn") <> "" AND oUser.Get("givenName") <> "" then
+	    		FixUser oUser.Get("givenName"), oUser.Get("sn")
+	    	end if
+		End If
+	End Function
+
+	Function FixUser(strFirstname, strLastname)
+		oUser.Put "sn",strLastname
+		oUser.Put "givenName",strFirstname
+		oUser.Put "displayName",strFirstname & " " & strLastname
+		oUser.SetInfo
+		if hex(err) <> 0 then report vbTAB & " :" & hex(err), 1
+	End Function
+
+	Function PopulateOUs()
+		if selOUFirstTime = 1 Then
+			ReDim aryAgencies(2,50000)
+			ReDim naryAgency(50000)
+			comOU = "dc=domain,dc=com"
+			objCommand.CommandText = "select distinguishedName from 'LDAP://" & comOU & "' WHERE objectClass='organizationalUnit' ORDER BY distinguishedName"
+			Set daOU = objCommand.Execute
+			x = 1
+			While Not daOU.EOF
+				if left(lcase(daOU("distinguishedName")),7) = "ou=user" then
+					aryAgency = split(daOU("distinguishedName"),",") 'Make array of Distinguished Name
+					aryAgencies(1,x) = right(aryAgency(1),len(aryAgency(1))-3) 'Nuder Agency
+					aryAgencies(2,x) = daOU("distinguishedName")
+					x = x + 1
+				end if
+				daOU.MoveNext
+			Wend
+			ReDim Preserve aryAgencies(2,x)
+			saryAgencies = arraysort(aryAgencies)
+			For i = 0 to UBound(saryAgencies,2)
+				if saryAgencies(1,i) <> "" then
+					'Populate Select
+					set Moptions=document.createElement("OPTION")
+					selOUPicker.appendChild(Moptions)
+					Moptions.text=saryAgencies(1,i)
+					Moptions.value=saryAgencies(2,i)
+				end if
+			Next
+			selOUFirstTime = 0
+		end if
+	End Function
+
+	Function arraysort(values())
+	    Dim i 
+	    Dim j 
+	    Dim smallest_value 
+	    Dim smallest_j 
+	    Dim min
+	    Dim max
+	    Dim temp
+	    
+	    min = lbound(values,2)
+	    max = ubound(values,2)
+    		For i = min To max - 1
+    			smallest_value = values(1,i)
+    			smallest_j = i
+    			For j = i + 1 To max
+		    		' See if values(j) is smaller. changed To strComp to work With strings.
+    				if strComp(values(1,j),smallest_value,vbTextCompare) = -1 Then
+    					' Save the new smallest value.
+    					smallest_value = values(1,j)
+    					smallest_j = j
+    				End if
+    			Next 'j
+    			if smallest_j <> i Then
+	    			' Swap items i and smallest_j.
+    				For intA = 0 To ubound(values,1)
+	    				temp = values(intA,smallest_j)
+    					values(intA,smallest_j) = values(intA,i)
+    					values(intA,i) = temp
+    				Next 'intA
+    			End if
+    		Next 'i
+    	arraysort = values
+	End function
+	Function PopulateFields()
+		txtFullname.value = txtFirstname.value & " " & txtLastname.value
+		txtUserlogonname.value = txtFirstname.value & "." & txtLastname.value
+		txtTSP.value = TermServShare & txtUserlogonname.value
+	End Function
+	Function CheckForExistingUser()
+		On Error Resume Next
+		Set User = GetObject("WinNT://" & strDomain & "/" & txtUserlogonname.value & ",user")
+		uErr = hex(err)
+		if uErr = "0" then
+			msgbox "Username already exists on the domain." & vbCRLF & "Verify the username and try again." & vbCRLF & "(You may wish to add an initial to the name)", vbOKONLY + vbCRITICAL, "Invalid Username"
+		elseif uErr = "800708AD" then
+			msgbox "Username is unique.", vbOKONLY + vbINFORMATION, "Valid Username"
+		end if
+		uErr = ""
+	End Function
+</script>
+</HEAD>
+<body>
+<div id="wndInitial" style="display:visable;">
+	<table align="center" width="95%" cellpadding="0" cellspacing="2">
+		<tr><td align="left"><font size="2"><b>Create in:</b></font></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td align="center" colspan="2">
+				<INPUT type="text" size="50" name="txtOU" id="txtOU" value="LDAP://OU=Enterprise,DC=domain,DC=com">
+				&nbsp;&nbsp;&nbsp;
+				<button onclick="ChangeView(4)" ID="btnOUPicker">Select...</button>
+  		</td></tr>
+  			<tr><td class="clsInfo" colspan="2" height="5"></td></tr>
+  		<tr><td class="clsMain" align="left" colspan="2"><FONT size="2"><b>User:</b></font></td></tr>
+  			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		
+		<tr><td class="clsInfo" align="left">First name:</td><td><INPUT type="text" id="txtFirstname" size="25" value="" onKeyUp="PopulateFields()"></td></tr>
+		<tr><td class="clsInfo" align="left">Initials:</td><td><INPUT type="text" id="txtInitials" size="10" value=""></td></tr>
+		<tr><td class="clsInfo" align="left">Last name:</td><td><INPUT type="text" id="txtLastname" size="25" value="" onKeyUp="PopulateFields()"></td></tr>
+		<tr><td class="clsInfo" align="left">Full name:</td><td><INPUT type="text" id="txtFullname" size="40" value="" disabled></td></tr>
+		
+		<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		
+		<tr><td class="clsInfo" align="left">User logon name:</td><td><INPUT type="text" id="txtUserlogonname" size="25" value=""></td></tr>
+		<tr><td class="clsInfo" align="left">User logon name (pre-Windows 2000):</td><td><INPUT type="text" id="txtUserlogonnamePre" size="25" value=""></td></tr>
+  		<tr><td class="clsInfo" align="center" colspan="2"><button name="btnCheckUser" onclick="CheckForExistingUser()" style="width:150px;">Check if User Exists</button></td></tr>
+  		
+  		<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+  		
+  		<tr><td class="clsInfo" align="left">Password:</td><td><INPUT type="password" id="txtPassword1" size="25" value="Welcome2"></td></tr>
+		<tr><td class="clsInfo" align="left">Confirm Password:</td><td><INPUT type="password" id="txtPassword2" size="25" value="Welcome2"></td></tr>
+
+		<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+
+  		<tr><td class="clsMain" align="left" colspan="2"><INPUT type="checkbox" id="chkCONL">User must change password at next logon
+		<tr><td class="clsMain" align="left" colspan="2"><INPUT type="checkbox" id="chkUCCP">User cannot change password
+		<tr><td class="clsMain" align="left" colspan="2"><INPUT type="checkbox" id="chkEA">Password never expires
+		<tr><td class="clsMain" align="left" colspan="2"><INPUT type="checkbox" id="chkUA">Account is disabled
+
+  		<!--FOOTER-->
+		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="2"></td></tr>
+  		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  		<tr>
+  			<td align="center" colspan="2">
+				<button onclick="ChangeView(2)" ID="btnNext1">Next ></button>
+				&nbsp;
+  				<button onclick="CloseNow()">Cancel</button>
+  				&nbsp;
+  				<button onclick="ChangeView(6)" ID="btnAbout">About</button>
+  			</td>
+  		</tr>
+  	</table>
+</div>
+
+<div id="wndReport" style="display:none;">
+	<table align="center" cellpadding="0" cellspacing="2" width="90%">
+  		<tr>
+			<td align="left"><button onclick="ChangeView(1)">Back</button></td>
+			<td align="right"><button onclick="CloseNow()">Finished</button></td>
+		</tr>	
+  			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="2"></td></tr>
+  		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+		<tr>
+			<td align="left">
+				<FONT size="2">
+					<div id="subReport">
+					</div>
+				</font>
+  			</td>
+  		</tr>
+  	</table>
+</div>
+
+<div id="wndInfo1" style="display:none;" class="clsInfo">
+	<table align="center" cellpadding="0" cellspacing="2" width="90%">
+		<tr><td class="clsInfo" colspan="2" align="left"><b>General</b></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td class="clsInfo" align="left">Description:</td><td><INPUT type="text" id="txtDescription" size="25" value=""></td></tr>
+		<tr><td class="clsInfo" align="left">Office:</td><td><INPUT type="text" id="txtOffice" size="25" value=""></td></tr>
+		<tr><td class="clsInfo" align="left">Phone Number:</td><td><INPUT type="text" id="txtPhonenumber" size="25" value="" title="Format: 410-396-6648"></td></tr>
+		<tr><td class="clsInfo" align="left">E-Mail:</td><td><INPUT type="text" id="txtEmail" size="25" value="" title="Format: rcpt@domain.com"></td></tr>
+
+		<tr><td class="clsInfo" colspan="2" align="left"><b>Address</b></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td class="clsInfo" align="left">Street:</td><td><TEXTAREA id="txtStreet" rows="3" cols="25" value=""></TEXTAREA></td></tr>
+		<tr><td class="clsInfo" align="left">City:</td><td><INPUT type="text" id="txtCity" size="25" value="City"></td></tr>
+		<tr><td class="clsInfo" align="left">State:</td><td><INPUT type="text" id="txtState" size="25" value="Maryland"></td></tr>
+		<tr><td class="clsInfo" align="left">Zip/Postal Code:</td><td><INPUT type="text" id="txtZip" size="25" value="21202"></td></tr>
+		<tr><td class="clsInfo" align="left">Country/region:</td><td><INPUT type="text" id="txtCountry" size="25" value="US"></td></tr>
+
+		<tr><td class="clsInfo" colspan="2" align="left"><b>Organization</b></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td class="clsInfo" align="left">Title:</td><td><INPUT type="text" id="txtTitle" size="25" value=""></td></tr>
+		<tr><td class="clsInfo" align="left">Department:</td><td><INPUT type="text" id="txtDepartment" size="25" value=""></td></tr>
+		<tr><td class="clsInfo" align="left">Company:</td><td><INPUT type="text" id="txtCompany" size="25" value="Company"></td></tr>
+		
+		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="2"></td></tr>
+  		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  		<tr>
+  			<td align="center" colspan="2">
+				<button onclick="ChangeView(1)" ID="btnBack1" title="">< Back</button>
+				&nbsp;
+				<button onclick="ChangeView(3)" ID="btnNext2">Next ></button>
+				&nbsp;
+				<button onclick="CloseNow()">Cancel</button>
+  				&nbsp;
+  				<button onclick="ChangeView(6)" ID="btnAbout">About</button>
+  			</td>
+  		</tr>
+	</table>
+</div>
+
+<div id="wndInfo2" style="display:none;" class="clsInfo">
+	<table align="center" cellpadding="0" cellspacing="2" width="90%">
+		<tr><td class="clsInfo" colspan="2" align="left"><b>Terminal Services Profile</b></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td class="clsInfo" align="left">Terminal Services Profile:</td><td><INPUT type="text" id="txtTSP" size="25" value=""></td></tr>
+
+		<tr><td class="clsInfo" colspan="2" align="left"><b>Profile</b></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td class="clsInfo" align="left">Connect:</td><td><INPUT type="text" id="txtHF1" size="2" value="P:"></td></tr>
+		<tr><td class="clsInfo" align="left">To:</td><td><INPUT type="text" id="txtHF2" size="25" value=""></td></tr>
+
+		<!--FOOTER-->	
+		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="2"></td></tr>
+  		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  		<tr>
+  			<td align="center" colspan="2">
+				<button onclick="ChangeView(2)" ID="btnBack2" title="">< Back</button>
+				&nbsp;
+				<button onclick="Create" ID="btnCreate">Create</button>
+				&nbsp;
+				<button onclick="CloseNow()">Cancel</button>
+  				&nbsp;
+  				<button onclick="ChangeView(6)" ID="btnAbout">About</button>
+  			</td>
+  		</tr>
+	</table>
+</div>
+
+<div id="wndOUPicker" style="display:none;" class="clsInfo">
+	<table align="center" cellpadding="0" cellspacing="2" width="90%">
+		<tr><td class="clsInfo" colspan="2" align="left"><b>Select Organization Unit:</b></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td>
+			<font style="font-size:10px;font-style:italic;">
+				This list is comprised of all the OUs that contain a 'User Accounts' OU directly beneath it.
+				To select a different OU, please type the LDAP path in manually on the previous screen.
+			</font>
+		</td></tr>
+		<tr><td class="clsInfo" colspan="2" height="5"></td></tr>
+		<tr>
+			<td class="clsInfo" align="center" colspan="2">
+				<select size="20" id="selOUPicker">
+				</select>
+			</td>
+		</tr>
+		
+		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="2"></td></tr>
+  		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  		<tr>
+			<td align="center" colspan="2">
+			<button onclick="ChangeView(5)" style="width:50px;">Select</button>
+			&nbsp;
+			<button onclick="ChangeView(1)">Cancel</button>
+			</td>
+		</tr>	
+  	</table>
+</div>
+
+<div id="wndAbout" style="display:none;" class="clsInfo">
+	<table align="center" cellpadding="0" cellspacing="2" width="90%">
+		<tr><td class="clsInfo" align="center" colspan="2" height="10" colspan="2">
+			<span style="font-size:20px;font-weight:bold;">A B O U T</span>
+		</td></tr>
+			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="1"></td></tr>
+		<tr><td class="clsInfo" align="left" colspan="2" height="10" colspan="2">
+			User Creator was designed and written by Brad Gibson
+		</td></tr>
+		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  			<tr><td class="clsInfo" colspan="2" bgcolor="#030D8D" height="2"></td></tr>
+  		<tr><td class="clsInfo" colspan="2" height="8"></td></tr>
+  		<tr>
+			<td align="center" colspan="2">
+			<button onclick="ChangeView(1)"> < Back</button>
+			</td>
+		</tr>	
+  	</table>
+</div>
+
+
+</body>
+</html>
